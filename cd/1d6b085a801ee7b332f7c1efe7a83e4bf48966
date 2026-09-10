@@ -1,0 +1,45 @@
+.agents/skills/vllm-api-compat/DESIGN.md
+  s_ff95bdff0a6f28::t_2d1384447493e1 1-273
+.agents/skills/vllm-api-compat/SKILL.md
+  s_ff95bdff0a6f28::t_ec99406cc11e24 1-285
+.agents/skills/vllm-api-compat/references/acceptance.md
+  s_ff95bdff0a6f28::t_884cf6f9556e38 1-53
+.agents/skills/vllm-api-compat/references/behavior.md
+  s_ff95bdff0a6f28::t_ff1a708f6347e7 1-61
+.agents/skills/vllm-api-compat/references/command-recipes.md
+  s_ff95bdff0a6f28::t_7ab927ced6ef46 1-90
+.agents/skills/vllm-api-compat/references/params_simple.yaml
+  s_ff95bdff0a6f28::t_f8c17f61088172 1-792
+.agents/skills/vllm-api-compat/references/serve_cli.md
+  s_ff95bdff0a6f28::t_0fa2c609920812 1-825
+.agents/skills/vllm-api-compat/references/serve_cli_params.csv
+  s_ff95bdff0a6f28::t_91f1b1d9764559 1-497
+.agents/skills/vllm-api-compat/scripts/_common.py
+  s_ff95bdff0a6f28::t_db3f5b2cae10b9 1-575
+.agents/skills/vllm-api-compat/scripts/bench_test.py
+  s_ff95bdff0a6f28::t_653d6321ea0f5a 1-106
+.agents/skills/vllm-api-compat/scripts/cli.py
+  s_ff95bdff0a6f28::t_68d179fbeb49aa 1-612
+.agents/skills/vllm-api-compat/scripts/daily_check.py
+  s_ff95bdff0a6f28::t_c442f6e2c313e7 1-461
+.agents/skills/vllm-api-compat/scripts/remote_container.py
+  s_ff95bdff0a6f28::t_6438526143b7b1 1-399
+.agents/skills/vllm-api-compat/scripts/test_build_args.py
+  s_ff95bdff0a6f28::t_a943aacfc72752 1-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "cd1d6b085a801ee7b332f7c1efe7a83e4bf48966",
+  "prompts": {},
+  "sessions": {
+    "s_ff95bdff0a6f28": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa10916a38e7449f5257b2d",
+        "model": "deepseek_v4_flash_official__max"
+      },
+      "human_author": "lizy124 <1950471827@qq.com>"
+    }
+  }
+}
