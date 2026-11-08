@@ -1,127 +1,45 @@
-# Repository instructions
+# MindIE Agent
 
-Local `vllm` + `vllm-ascend` development scaffold. `vllm/` and `vllm-ascend/` are Git submodules.
+This repository owns product architecture, domain boundaries, and entry documentation (`docs/`).
+Native Harness plugins: `mindie-agent-codex`, `mindie-agent-cc`, `mindie-agent-kimi`, `mindie-agent-dsh`, `mindie-agent-agy`, `mindie-agent-wb`.
+Shared runtime components: `knowledge`, `remote-dev`, `diagnostics`, `debugger`, `profiler`, `sim`, `npu-top`, `coordinator` (plus `mindie-bench`).
 
-The canonical scaffold is `vllm-ascend-workspace/vllm-ascend-workspace`
-(public, non-fork). Submodule URLs stay on `vllm-project/vllm` and
-`vllm-project/vllm-ascend`. Personal development forks such as
-`maoxx241/vllm` and `maoxx241/vllm-ascend` sit outside the organization
-and are not replacement community upstreams.
+## 1. Core Operating Rules (Always Active)
 
-This repository provides a remote development substrate first, then
-vLLM-Ascend skills on top.
+- **Repository & Inner-Loop Boundary (Principle 1)**: This repo holds documentation, channel manifests (`channels/0.1.json`), and CI gates only—no runtime code or legacy VAWS aliases. Edit files directly in the active checkout and verify only the affected scope (no snapshot directories or `readback.json`/`shadow.json` audit ceremonies).
+- **Task Continuity & Native Escape Routes (Principles 1–2)**: Helpers remain optional. When discovery, standard preparation, or a tool is unsuitable, continue within existing user authorization through existing CLIs, native shell/SSH, or task-local scripts. Preserve the original failure, confirmed facts, endpoint/job references, and actual resource ownership; reconcile uncertain external writes before replacement. Pause only dependent actions, not the whole task. See [`docs/source-rebuild-contract.md`](docs/source-rebuild-contract.md).
+- **State Honesty & No Silent Fallbacks (Principle 9 & 14)**:
+  - Distinguish `completed`, `failed`, and `unknown` external effects. Never mask failures as `{}` / `"active"` / `exit 0`, never let `except OSError:` swallow `TimeoutError` (always precede with `except TimeoutError: raise`), and never blindly replay an `unknown` external write.
+  - **Receipt Honesty**: Once a primary remote/component operation succeeds, local receipt/bind accounting errors must keep `isError=False` and attach `receipt_warning` + `receipt_unconfirmed=True`.
+- **Timeout Arithmetic & Anti Over-Defensive Iron Rules (Principle 10 & 15)**:
+  - Enforce `outer_timeout >= sum(inner_budgets) + cleanup_grace` (e.g., MCP `660s >= 600s + 60s`, `STOP_DRAIN >= STOP_GRACE + 3s`), decouple process output buffer limits from MCP response truncation budgets, and never run `timeout N cmd || cmd`.
+  - **Four Iron Rules**: (1) Configure SQLite WAL + `busy_timeout=5000` once in `open_database` (no per-query `.owner` `lstat` or `:memory:` reflection); (2) Reserve `unknown` strictly for irreversible external writes, banning one-way local self-bricking (`fault`/`suppressed`/`TaskRootBusy`); (3) No copy-pasted `*_fallback.py`/`*_bootstrap.py` shadow state machines or Win32 ACL ceremonies (use `os.replace()`); (4) No `inspect.signature` locks or giant inline Python string blobs.
+- **Four-Tier Testing & Zero Host Pollution (Principle 16)**:
+  - No filler/type/prose-grep tests or fabricated `MagicMock` hardware payloads. Isolate `MINDIE_CONFIG_HOME`, `MINDIE_DATA_HOME`, `MINDIE_DIAGNOSTICS_ROOT`, and `$HOME` in all tests.
+  - **Tier 0 (`<5s`)**: Pure in-memory unit tests + Golden Captures; **Tier 1 (`<15s`)**: Local process/SQLite/Git boundary tests; **Tier 2 (`<25s`, `@pytest.mark.live_npu`)**: Non-destructive live A2 (`173.125.1.2`) & A3 (`192.168.13.165`/`.156`/`.154`) NPU integration; **Tier 3 (`<90s`)**: Live host CLI & `mindie-bench` Canary acceptance.
+- **Agent-Native Modules & Bounded Resources (Principle 17 & 18)**:
+  - Keep core modules `< 800` lines with a top-30-line `[Role]` / `[Invariants]` / `[Timeouts & Locks]` / `[Side-Effect Policy]` docstring header; comment *why* & hardware invariants (e.g., A3 dual-Die `Phy-ID 0..15`), never defensive excuses.
+  - Keep working sets $O(\text{Active State})$ (`<= 512 MiB` control-plane peak; `> 1 GiB` is a bug), stream files `> 50 MB`, keep control paths zero-weight/zero-device-context, and place workloads by measured local/remote (`fleet_probe.py`) specs rather than hardcoded `sys.platform`.
 
-## Remote development model
+## 2. Progressive Disclosure Map (Read Only When Triggered)
 
-Use native client tools for local files and local shell work.
+Do not preload all docs into context. Read only the reference matching your current task:
 
-Use remote companion tools for remote endpoints. The remote tools mirror native
-tool semantics and only add endpoint fields:
+- **Historical Postmortems & Anti-Regression Guardrails (`P1–P7`)** → [`docs/historical-issues-and-guardrails.md`](docs/historical-issues-and-guardrails.md) *(Consult when touching auto-update, hooks, timeouts, receipts, C6 distillation, benchmarks, or A2/A3/A5 topology)*
+- **Architecture & Domain Boundaries** → [`docs/architecture.md`](docs/architecture.md)
+- **Engineering Principles, Testing & Resource Placement** → [`docs/design-principles.md`](docs/design-principles.md), [`docs/testing-architecture.md`](docs/testing-architecture.md) & [`docs/execution-resource-budget-design.md`](docs/execution-resource-budget-design.md)
+- **Harness Plugin Lifecycle, Knowledge & Component Specs** → [`docs/harness-boundary-and-lifecycle.md`](docs/harness-boundary-and-lifecycle.md), [`docs/knowledge-system.md`](docs/knowledge-system.md), [`docs/diagnostics-and-reporting.md`](docs/diagnostics-and-reporting.md), [`docs/profiler-system.md`](docs/profiler-system.md) & [`docs/simulation-system.md`](docs/simulation-system.md)
+- **Existing Source Development, Native Rebuilds & Artifact Recovery** → [`docs/source-rebuild-contract.md`](docs/source-rebuild-contract.md) *(Read when changing source locations, editable bindings, native build behavior, or baseline backup/restore guidance)*
+- **Gate — Submitting or Updating a Development PR**:
+  - Complete [`docs/design-principles.md#三开发-pr-提交前自查清单pre-pr-review`](docs/design-principles.md#三开发-pr-提交前自查清单pre-pr-review) and [`.github/pull_request_template.md`](.github/pull_request_template.md), and verify Unix `LF` (`\n`) line endings via `python3 .github/scripts/check_lf_eol.py`.
+- **Gate — Publishing a Component, Corpus, or Plugin Release (Mandatory `R1–R6` Checklist)**:
+  - Read [`docs/release-compatibility-and-update.md#组件与插件配套发布`](docs/release-compatibility-and-update.md#组件与插件配套发布) and **mandatorily pass all 6 checklist items (`R1–R6`)** before and after any release or [`channels/0.1.json`](channels/0.1.json) update:
+    ```bash
+    # Independent release: select only the publishing repositories (repeat --release-repo as needed).
+    # R6 checks their own source versions, READMEs and LF; the product channel remains a historical combination.
+    python3 .github/scripts/check_auto_update_readiness.py --release-repo knowledge --require-siblings --verify-local-hosts --verify-github-releases
 
-| Local tool | Remote tool |
-|------------|-------------|
-| Read | `remote.read` |
-| Edit | `remote.edit` |
-| Write | `remote.write` |
-| Bash | `remote.bash` |
-| Glob | `remote.glob` |
-| Grep | `remote.grep` |
-| LS | `remote.ls` |
-| Monitor | `remote.monitor` |
-| apply_patch | `remote.apply_patch` |
-
-Default endpoint fields:
-
-- `host`
-- `port`
-- `user`, default `root`
-- `root`, default `/`
-- `cwd`, default `/vllm-workspace`
-
-Prefer `host + port` direct endpoints for ordinary remote development.
-`session_id`, `session_file`, and `machine` remain advanced compatibility
-paths for managed VAWS sessions and legacy single-tenant flows.
-
-Prefer remote companion tools for ordinary remote development. Hooks are
-permissive by default, and direct endpoints default to full remote-path
-permission (`root=/`). Pass a narrower `root` explicitly when a task requires
-path isolation.
-
-## Skills
-
-Repo-local skills live under `.agents/skills/`. Each has its own `SKILL.md` with usage, entry points, and routing rules — read that before invoking.
-
-| Skill | Purpose |
-|-------|---------|
-| `repo-init` | Initialize workspace: `gh`, GitHub auth, submodules, fork topology |
-| `machine-management` | Add / verify / repair / remove a remote NPU machine |
-| `npu-fleet-monitor` | Deploy, start, inspect, restart, or stop the loopback-only NPU monitoring dashboard from the standalone vaws-top repository |
-| `session-management` | Create / inspect / remove / group isolated agent sessions (local worktree + remote container + leases) |
-| `remote-code-parity` | Sync local working tree to remote container before execution |
-| `modelscope` | Download / resume / status-check / SHA256-verify ModelScope model weights under explicit local directories |
-| `vllm-ascend-serving` | Start / check / stop a vLLM Ascend service on a remote container |
-| `vllm-ascend-benchmark` | Run `vllm bench serve` benchmarks (single-run or multi-run with warmup) |
-| `ascend-memory-profiling` | Profile HBM memory usage on Ascend NPU for vLLM serving scenarios |
-| `ascend-profiling-collection` | Collect one Ascend torch-profiler case end-to-end (start service, bracket workload with `/start_profile` + `/stop_profile`, run `analyse()`, verify outputs, write manifest) |
-| `ascend-profiling-analysis` | Analyze collected Ascend torch-profiler roots/manifests and generate reports |
-| `curate-workspace-knowledge` | Explicitly review, deduplicate, promote, reject, or deprecate verified knowledge candidates; resolve unresolved v2 coordinates and gate upstream export |
-| `vllm-ascend-graph-debug` | Diagnose Ascend graph compile, capture, replay, and graph/eager correctness divergence |
-| `vllm-ascend-correctness-validation` | Plan and compare baseline/candidate, eager/graph, offline/online, and task-metric correctness evidence |
-| `vllm-ascend-change-validation` | Map code diffs to required validation evidence and aggregate downstream runs into PR reports |
-| `vllm-ascend-performance-regression` | Control alternating baseline/candidate experiments and assess performance regressions |
-| `vllm-ascend-distributed-debug` | Diagnose rank topology, process-group, endpoint, collective, and distributed hang failures |
-| `ascend-tensor-dump` | Capture bounded intermediate tensor dumps and locate the first stage where numbers diverge, in eager or graph mode |
-| `ascend-operator-debug` | Reduce a model symptom to one Ascend operator call and validate an explicit input/mode matrix |
-| `ascend-triton-operator-development` | Convert a PyTorch or GPU Triton contract into a first correct Ascend Triton candidate |
-| `ascend-triton-kernel-validation` | Detect fallback and validate an Ascend Triton kernel over an explicit correctness matrix |
-| `ascend-triton-kernel-optimization` | Run profiler-driven, correctness-gated Ascend Triton optimization experiments |
-| `ascend-triton-workflow` | Orchestrate Ascend Triton development, validation, optimization, and evidence linking |
-| `vllm-ascend-pd-serving` | Orchestrate grouped prefill/decode services, connector configuration, rollback, and smoke tests |
-
-None of these are gates for normal local coding, docs work, or unrelated Git tasks.
-For remote endpoint work, prefer remote-dev companion tools first and use these
-skills for domain workflows.
-
-## Repo-wide rules
-
-- Native-attached VAWS tasks use one local task identity with many native
-  attachments. New native sessions create new tasks; resume keeps the original
-  task. Only explicit parent/user association joins another task; never infer
-  task identity from cwd or recent chat history.
-- Prefer `vaws_session/vaws_run/vaws_execution/vaws_finish` for task-facing pool
-  work. Bind actual business worktrees and keep local development available
-  without the coordinator. Do not pass new task/binding/job ids to legacy
-  session commands or create duplicate local NPU leases for pool executions.
-- The optional shared runtime pool lives in the installed `vaws-coordinator`
-  package (`uv.lock`). See
-  [docs/coordinator-consumption.md](docs/coordinator-consumption.md).
-  Pool bindings use its execution leases and ordinary remote-dev endpoints;
-  do not create duplicate legacy local NPU leases or pass a binding id as a
-  legacy session id. All clients of a pool must use the same manager and the
-  same explicit `--state-dir`. Stage edits during runs; materialize and
-  refresh native artifacts only after its executions are released. Model
-  services restart for changed code.
-- Never write secrets, passwords, or tokens into tracked files.
-- Keep VAWS runtime state under `.vaws-local/`, remote-dev state under
-  `.vaws-local/remote-dev-state/`, and the local task registry under
-  `.vaws-local/agent-sessions/`. All are untracked.
-- Keep `.gitmodules` on community upstream URLs.
-- Prefer remote-dev companion tools (`remote_*` MCP tools, launched via `.venv/bin/python -m remote_dev.mcp.server`) or skill wrapper scripts over raw SSH / shell commands for remote operations.
-- Skill wrappers: progress on `stderr`, final JSON on `stdout`.
-- Execution skills must use Run Manifest v1 from `vaws_coordinator.run_manifest` for new cross-workflow runs and keep manifests under untracked `.vaws-local/`.
-- Read fast-changing compatibility, capability, validation, and failure-signature facts from `.agents/knowledge/`; treat missing facts as unknown rather than supported.
-- Knowledge is federated across three layers: `shared` (read-only corpus shipped in the installed `vaws-knowledge` package), `project` (`.agents/knowledge/`, both v1 `<kind>.yaml` and v2 `<kind>.v2.yaml`), and `candidate` (unreviewed local observations under `.vaws-local/knowledge/candidate/`). A v2 entry has exactly one body: `rule` or `measurement`; `content_hash` covers `scope` plus that body. The query/capture/hash engine is the installed `vaws-knowledge` package. `.agents/scripts/knowledge_query.py` and `knowledge_capture.py` are thin CLIs over that engine. Agents can call the `vaws-knowledge` MCP tools `knowledge_query`, `knowledge_explain`, and `knowledge_capture` directly. A degraded answer is never an authoritative "no".
-- On a concrete practical failure, query compact formal matches with `.agents/scripts/knowledge_query.py` or the `knowledge_query` MCP tool before repeating diagnosis. After a novel fix has a confirmed cause and verification evidence, capture a candidate with `.agents/scripts/knowledge_capture.py` or the `knowledge_capture` MCP tool.
-- Applicability is a coordinate, not prose. Capture reads soc / cann / driver / python_abi / torch / torch_npu / vllm / vllm_ascend / model / topology / execution_mode / component from the Run Manifest, `--env`, or the candidate scope, and records anything unavailable as `unknown`. Never invent a version to fill a dimension; an unresolved dimension blocks `verified` and blocks export by design.
-- Invoke `curate-workspace-knowledge` only for explicit knowledge review, promotion, coordinate resolution, or upstream export; normal workflows use the shared capture and query scripts directly.
-- Propose knowledge upstream only through `.agents/scripts/knowledge_export.py`. It is the source-side redaction gate: detection follows `vaws_knowledge.redact` (profile declared by the package). Internal addresses, user paths, hostnames, container names, internal machine identifiers, and unresolved coordinates never leave this fork.
-- Before reporting a blocking problem or asking the user to intervene, query `.agents/knowledge/` with `.agents/scripts/knowledge_query.py` using the observed failure signature. State explicitly when no verified match exists.
-- Use the remote-dev substrate for agent-facing remote read/edit/bash/search/patch/job/artifact work. Use the remote toolbox entrypoints as the managed VAWS compatibility backend before falling back to bare SSH.
-- Remote work runs inside a `session-management` session. From inside the session worktree, parity, serving, benchmark, and profiling commands auto-resolve the session from the cwd binding; pass `--session-id` only when running outside the worktree or targeting another session. Domain skill commands (serving, benchmark, profiling) are session-only; `--machine` exists only for machine registration and `session_create.py` base-machine selection. Legacy compatibility surfaces still accept `--machine`: `remote-code-parity/scripts/parity_sync.py`, `session-management/scripts/npu_coordination.py`, and `vllm-ascend-serving/scripts/serve_probe_npus.py`.
-- The three in-process external packages (vaws-remote-dev, vaws-coordinator, vaws-knowledge) are consumed through `pyproject.toml` + `uv.lock`. vaws-top is a uvx service, not an import. Check workspace capability with `python3 .agents/scripts/vaws_deps.py doctor` before assuming remote endpoints, the task pool, fleet observation, or shared knowledge are available; a `partial` outcome names what is missing. Package gaps use `uv sync`; fleet observation uses `python3 .agents/skills/npu-fleet-monitor/scripts/manage_monitor.py deploy`. See [docs/dependency-plane.md](docs/dependency-plane.md).
-- Documentation under `docs/` carries a `Status:` line. `Status: current` is a contract; `Status: dated` is evidence and is never a direction. See [docs/README.md](docs/README.md).
-- This repo targets Huawei Ascend NPU. Local machines (Mac/PC) cannot run `torch`/`torch_npu`-dependent code. Do not attempt local test execution — go straight to the remote container.
-
-## Maintenance
-
-When changing a skill, update the whole package together: `SKILL.md`, `scripts/`, `references/`, `agents/`, and other supporting files as applicable. When the change affects shared state, also update `.agents/scripts/workspace_profile.py`, `.agents/lib/vaws_local_state.py`, `.agents/lib/vaws_session_id.py`, `.agents/lib/vaws_session_state.py`, `.agents/lib/vaws_remote_dev.py`, `.agents/lib/vaws_remote_target.py`, and `.agents/lib/vaws_coordinator_launch.py` as applicable.
+    # Product combination release / channels update: explicitly enable full documentation alignment.
+    python3 .github/scripts/check_auto_update_readiness.py --release-scope product --require-siblings --verify-local-hosts --verify-github-releases
+    ```
+  - Independent component/corpus/plugin releases do not require a main product version bump, a channel update, or changes to other repositories' READMEs. Only product combination releases run `sync_org_versions.py --release-scope product --write` (optionally with `--org-profile-dir`). `--strict-lockstep` controls dependency pin equality independently of the R6 documentation scope.
